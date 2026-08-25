@@ -1,0 +1,52 @@
+pipeline:
+  output_dir: "./output"
+  workspace_dir: "./colmap_workspace"
+
+frame_extraction:
+  max_frames: 200
+  min_frames: 50
+  target_fps: 2.0
+  blur_threshold: 100.0
+  min_feature_count: 500
+  diversity_weight: 0.3
+  gps_spacing_m: 2.0
+
+sfm:
+  feature_type: "SIFT"
+  matcher_type: "sequential"
+  sequential_overlap: 10
+  min_num_matches: 15
+  ba_refine_focal_length: true
+  ba_refine_extra_params: true
+
+depth:
+  model: "depth_anything_v2"
+  encoder: "vitl"
+  input_size: 518
+  batch_size: 4
+
+geospatial:
+  crs_epsg: 4326
+  utm_auto: true
+  gps_weight: 1.0
+  altitude_source: "metadata"
+  scale_method: "gps_baseline"
+
+reconstruction:
+  voxel_size: 0.05
+  depth_trunc: 50.0
+  sdf_trunc_multiplier: 4.0
+  min_confidence: 0.3
+  statistical_outlier_nb: 20
+  statistical_outlier_std: 2.0
+
+confidence:
+  observation_weight: 0.3
+  reprojection_weight: 0.3
+  depth_consistency_weight: 0.2
+  gps_residual_weight: 0.2
+
+viewer:
+  port: 8080
+  point_size: 2.0
+  background_color: [0.1, 0.1, 0.15]

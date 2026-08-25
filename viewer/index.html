@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroTwin — 3D Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        canvas { display: block; }
+
+        #toolbar {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+        .tool-btn {
+            padding: 8px 14px;
+            background: rgba(30, 30, 50, 0.9);
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .tool-btn:hover { border-color: #6c9cff; }
+        .tool-btn.active { background: #2a4a8a; border-color: #6c9cff; }
+
+        #info-panel {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            width: 280px;
+            background: rgba(20, 20, 40, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 16px;
+            z-index: 100;
+        }
+        #info-panel h2 {
+            font-size: 14px;
+            color: #6c9cff;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #2a2a3e;
+            font-size: 13px;
+        }
+        .info-row .label { color: #888; }
+        .info-row .value { color: #fff; font-weight: 500; }
+
+        #upload-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 20, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+        #upload-overlay h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            color: #6c9cff;
+        }
+        #upload-overlay p {
+            color: #888;
+            margin-bottom: 32px;
+        }
+        #drop-zone {
+            width: 400px;
+            height: 200px;
+            border: 2px dashed #444;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        #drop-zone:hover { border-color: #6c9cff; }
+        #drop-zone.dragover { border-color: #6c9cff; background: rgba(108,156,255,0.05); }
+
+        #measurement-display {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 20, 40, 0.95);
+            border: 1px solid #6c9cff;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 16px;
+            z-index: 100;
+            display: none;
+        }
+
+        #confidence-legend {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            background: rgba(20, 20, 40, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            z-index: 100;
+            display: none;
+            font-size: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 4px 0;
+        }
+        .legend-swatch {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div id="upload-overlay">
+        <h1>AeroTwin</h1>
+        <p>Single-Pass UAV Reconstruction Viewer</p>
+        <div id="drop-zone">
+            <p>Drop .PLY point cloud here</p>
+            <p style="font-size: 12px; color: #666; margin-top: 8px">or click to browse</p>
+            <input type="file" id="file-input" accept=".ply,.pcd,.xyz" style="display:none">
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="toolbar" style="display:none">
+        <button class="tool-btn active" data-tool="orbit">Orbit</button>
+        <button class="tool-btn" data-tool="measure">Measure</button>
+        <button class="tool-btn" data-tool="confidence">Confidence</button>
+        <button class="tool-btn" data-tool="reset">Reset View</button>
+    </div>
+
+    <div id="info-panel" style="display:none">
+        <h2>Model Info</h2>
+        <div class="info-row"><span class="label">Points</span><span class="value" id="val-points">—</span></div>
+        <div class="info-row"><span class="label">Width (X)</span><span class="value" id="val-width">—</span></div>
+        <div class="info-row"><span class="label">Depth (Y)</span><span class="value" id="val-depth">—</span></div>
+        <div class="info-row"><span class="label">Height (Z)</span><span class="value" id="val-height">—</span></div>
+        <div class="info-row"><span class="label">GPS</span><span class="value" id="val-gps">—</span></div>
+        <div class="info-row"><span class="label">Confidence</span><span class="value" id="val-confidence">—</span></div>
+    </div>
+
+    <div id="measurement-display"></div>
+
+    <div id="confidence-legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#33cc33"></div> High (&gt;66%)</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#e6cc1a"></div> Medium (33–66%)</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#e63319"></div> Low (&lt;33%)</div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
